@@ -2,12 +2,18 @@ module FCM
 (clusteringFCM,
  clusteringFCMwithVStart,
  hammingDistance,
- evclideDistance
+ evclideDistance,
+ randomUMatrix,
+ randomVMatrix,
+ vCenters,
+ nextU,
+ matrixMaxElemDif
 ) where
 
 import System.Random
 import Data.List
 
+--Random section---------------------------------------------------------------------
 getSecond (_,b) = b
 getFirst  (a,_) = a
 
@@ -23,33 +29,38 @@ randomVector n gen =   ((map ((/(fromIntegral (sum (getFirst rl)))) . fromIntegr
 randomUMatrixGen r c gen = randomList r gen (randomVector c)
 randomUMatrix r c gen= getFirst (randomUMatrixGen r c gen)
 
-randomVMatrix:: Int -> [[Float]]->StdGen->[[Float]]
-randomVMatrix n xObjects gen = randomVM [] n  xObjects gen
+randomVMatrix::  [[Float]]->Int ->StdGen->[[Float]]
+randomVMatrix xObjects n gen = randomVM [] n xObjects gen
   where 
     randomVM acm n [] gen = acm 
     randomVM acm n (x:xs) gen = randomVM ((getFirst randomVColumn) : acm) n xs (getSecond randomVColumn)
       where randomVColumn  = randomList n gen (randomR (maximum x, maximum x)) 
+-----------------------------------------------------------------------------------
 
-vectSum a b =  zipWith (+) a b
-vectSumF a = foldl vectSum (take (length (head a)) [0,0..]) a
-
-vL xObjects uColumn = (vectSumF (zipWith (\ a b-> map (*(b*b)) a) xObjects uColumn)) 
 vCenters uMatrix xObjects = map (vL xObjects) (transpose uMatrix) 
+ where 
+  vL xObjects uColumn = map (/(sum uColumn)) (vectSumF (zipWith (\ a b-> map (*(b*b)) a) xObjects uColumn))  
+  vectSumF a = foldl (zipWith (+)) (take (length (head a)) [0,0..]) a
+
+nextU :: (Fractional a )=>([a]->[a]->a)->[[a]]->[[a]]->[[a]]
+nextU  dist vMatrix xObjects = map (nextUm)  xObjects
+ where 
+  nextUm xObject = map (mCalc) vMatrix 
+   where
+    mCalc a = 1/(sum (map ( \ b -> ((dist xObject a) / b)^2 ) (map (\ c-> (dist xObject c)) vMatrix)))
 
 zipMatrixWith f a b = zipWith (zipWith f) a b
 matrixMaxElemDif a b =maximum (map maximum (zipMatrixWith (\a b -> abs (a-b)) a b))
 
-nextU :: (Fractional a )=>([a]->[a]->a)->[[a]]->[[a]]->[[a]]
-nextU  dist vMatrix xObjects = map (nextUm dist vMatrix)  xObjects
-nextUm dist vMatrix xObject = map (bbb) vMatrix
-  where bbb a = 1/(sum (map ( \ b -> ((dist xObject a) / b)^2 ) (map (\ c-> (dist xObject c)) vMatrix)))
-
 hammingDistance a b= abs . sum  $ zipWith (-) a b
 evclideDistance a b= sqrt $ hammingDistance  a b
 
-clusteringFCM xObjects n e gen dist= clutering (randomUMatrix n (length xObjects) gen) xObjects dist e
+clusteringFCM xObjects n e gen dist= clutering (randomUMatrix (length xObjects) n gen) xObjects dist e
     
-clusteringFCMwithVStart xObjects n e gen dist = clutering (nextU dist (randomVMatrix n xObjects gen) xObjects) xObjects dist e
+clusteringFCMwithVStart xObjects n e gen dist = clutering (nextU dist (randomVMatrix xObjects n gen) xObjects) xObjects dist e
 
-clutering u xObjects dist e = if matrixMaxElemDif u iteration < e then iteration else clutering iteration xObjects dist e 
+clutering u xObjects dist e = 
+  if (matrixMaxElemDif u iteration :: Float) < e 
+    then iteration 
+    else clutering iteration xObjects dist e 
   where iteration = nextU dist (vCenters u xObjects) xObjects 

@@ -8,6 +8,10 @@ import Data.Maybe
 import Data.List.Split.Internals
 import FCM
 import CSV
+import ARGS 
+
+dictionary = ["input","output","classNum","accuracy","startWithRandomCenters","columSeparator", 
+              "distance", "withoutFirstRow", "withoutFirstColumn", "withoutLastColumn"]
 
 getCSV c s = sCSV (maybeCSVParse c s::Maybe[[Float]])
    where sCSV (Nothing) = error "Wrong CSV File Format"
@@ -22,39 +26,35 @@ handler e
 argsParse:: [String]->[[String]]
 argsParse args = map (splitOn ":") args
 
+cutXObjects xObjects r fc lc = cut lc (map init) (cut fc (map tail)  (cut r tail xObjects))
+  where cut b f xObjects = if b then f xObjects else xObjects
 
-dictionary = ["input", "output", "classNum", "accuracy", "startWith", "columSeparator"]
-containsInDict a = any (\b -> b == a) dictionary
-
-argsValidate args =foldl (&&) True (map (validateArgument) args)
-  where 
-   validateArgument (x:xs) = if length xs == 1 && containsInDict x then True else False
-   validateArgument _ = False 
-
-argsDicionary:: [[String]]->String-> String
-argsDicionary dict key = last (head (filter (\a -> key == head a) dict))  
-
-argsAny dict key = any (\a -> key == head a) dict
+getDitance "hammingDistance" = hammingDistance
+getDitance "evclideDistance" = evclideDistance
+getDitance _ = error "Such distance function does not exist" 
 
 mainAction :: IO ()
 mainAction = do
   args <- getArgs
-  c<-if (argsValidate (argsParse args)) then print "Yes" else error "Wrong arguments format!" -- throw IOException 
-  csvFile<-readFile (argsDicionary (argsParse args) "input")
-  a<-if argsAny (argsParse args) "output" 
-   then writeFile (argsDicionary (argsParse args) "output") (show (getCSV "\n" csvFile))  
-   else print (show (getCSV "\n" csvFile))
-  gen<-newStdGen
-  la<-print (map sum (clasteringFCM (getCSV "\n" csvFile) 3 gen))
+  argsP<-return (argsParse args)
+  c<-if argsValidate argsP dictionary then print "Yes" else error "Wrong arguments format!" -- throw IOException 
+  csvFile<-readFile (argsDicionary argsP "input")
+  columSeparator <-         return (argsByKey argsP "columSeparator" "\n")
+  classNum <-               return (read (argsByKey argsP "classNum" "-")::Int) --`catch` handlerArgs
+  accuracy <-               return (read (argsByKey argsP "accuracy" "-")::Float)--catch
+  withoutFirstRow<-         return (read (argsByKey argsP "accuracy" "False")::Bool)
+  withoutFirstColumn<-      return (read (argsByKey argsP "withoutFirstColumn" "False")::Bool)
+  startWithRandomCenters <- return (read (argsByKey argsP "startWithRandomCenters" "False")::Bool)
+  dict <-             return (getDitance (argsByKey argsP "distance" "hammingDistance"))
+  csvP <- return (getCSV columSeparator csvFile)
+  xObjects <- return (cutXObjects csvP withoutFirstRow withoutFirstColumn withoutLastColumn)
+  fClastering <- return (if startWithRandomCenters then clusteringFCMwithVStart else clusteringFCM)
+  gen<-newStdGen 
+  clusters<-return (fClastering xObjects classNum accuracy gen dict)
+  output<-if argsAny argsP "output" 
+    then writeFile (argsDicionary argsP "output") (show clusters) 
+    else print (show clusters)
   print "End Main Action"
-
-    
-
 
 main = do
   mainAction `catch` handler --) :: IO (Either IOException String)
-  
-  --let maybeList = getListFromString input in
-    --  case maybeList of
-      --    Just l  -> print (l)
-        --  Nothing -> error "Неверный формат строки. Прощайте."

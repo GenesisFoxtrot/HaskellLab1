@@ -36,7 +36,6 @@ randomVMatrix xObjects n gen = randomVM [] n xObjects gen
     randomVM acm n (x:xs) gen = randomVM ((getFirst randomVColumn) : acm) n xs (getSecond randomVColumn)
       where randomVColumn  = randomList n gen (randomR (maximum x, maximum x)) 
 -----------------------------------------------------------------------------------
-
 vCenters uMatrix xObjects = map (vL xObjects) (transpose uMatrix) 
  where 
   vL xObjects uColumn = map (/(sum uColumn)) (vectSumF (zipWith (\ a b-> map (*(b*b)) a) xObjects uColumn))  
@@ -55,12 +54,15 @@ matrixMaxElemDif a b =maximum (map maximum (zipMatrixWith (\a b -> abs (a-b)) a 
 hammingDistance a b= abs . sum  $ zipWith (-) a b
 evclideDistance a b= sqrt $ hammingDistance  a b
 
-clusteringFCM xObjects n e gen dist= clutering (randomUMatrix (length xObjects) n gen) xObjects dist e
-    
-clusteringFCMwithVStart xObjects n e gen dist = clutering (nextU dist (randomVMatrix xObjects n gen) xObjects) xObjects dist e
+clusteringFCM xObjects n e gen dist= validation n e xObjects (clutering (randomUMatrix (length xObjects) n gen) xObjects dist e)
+clusteringFCMwithVStart xObjects n e gen dist = validation n e xObjects (clutering (nextU dist (randomVMatrix xObjects n gen) xObjects) xObjects dist e)
 
 clutering u xObjects dist e = 
   if (matrixMaxElemDif u iteration :: Float) < e 
     then iteration 
     else clutering iteration xObjects dist e 
   where iteration = nextU dist (vCenters u xObjects) xObjects 
+ 
+validation n e xObjects f = if n <= 0 && e<=0 then error "ERROR:e and n must be bigger than 0"
+                                              else if n > length xObjects then error  "ERROR:n must be less than objects count"
+                       	                                                  else f

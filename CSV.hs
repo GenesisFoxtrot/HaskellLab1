@@ -1,5 +1,6 @@
 module CSV
-(maybeCSVParse,
+(maybeRead,
+ maybeCSVParse,
  maybeCSVParseWithCut,
  cutArray
 )where 
